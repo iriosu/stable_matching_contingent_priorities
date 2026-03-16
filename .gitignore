@@ -1,2 +1,4 @@
 /data/
 *.tex
+*/intermediate_data/*
+code/R/intermediate_data/

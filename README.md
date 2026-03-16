@@ -1,2 +1,2 @@
-# stable_matching_contingent_priorities
-Repository for the paper "Stable MAtching with Contingent Priorities"
+# Stable Matching with Contingent Priorities
+Repository for the paper "Stable Matching with Contingent Priorities"
