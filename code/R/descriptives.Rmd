@@ -1,0 +1,91 @@
+---
+title: "Analysis Enrollment"
+output:
+  pdf_document:
+    keep_tex:  true
+    latex_engine: xelatex
+  html_document: default
+---
+
+```{r}
+rm(list=ls())
+library(dplyr)
+library(tidyr)
+library(magrittr)
+library(AER)
+library(stargazer)
+library(ggplot2)
+library(data.table)
+# library(reshape)
+library(reshape2)
+library(knitr) 
+library(kableExtra)
+library(magick)
+```
+
+# Load Data
+
+```{r}
+dropbox_dir <- '~/Dropbox/'
+```
+
+
+```{r}
+pref <- read.csv(paste(dropbox_dir, 'Capacity expansion in stable matching/Data/2018/preferencias.csv',sep=''), sep=";")
+schools <- read.csv(paste(dropbox_dir, 'Capacity expansion in stable matching/Data/2018/cursos.csv',sep=''), sep=";")
+students <- read.csv(paste(dropbox_dir, 'Capacity expansion in stable matching/Data/2018/postulantes.csv',sep=''), sep=";")
+siblings <- read.csv(paste(dropbox_dir, 'SAE - Personal/Code/Boris/input/pares_hermanos.csv',sep=''), sep=";")
+```
+
+```{r}
+students_with_siblings <- unique(union(siblings$id_postulante, siblings$id_hermano))
+```
+
+
+Note: there are some schools that have different codigo de ensenanza. The reason is that you may have the same school offering morning and afternoon, so this is the same school but with two different codes. Admission to those is separate, so that is why we consider them as different schools.
+
+
+```{r}
+students %>% nrow() # 274990
+students %>% filter(id_postulante %in% students_with_siblings) %>% nrow() # 44810
+
+students %>% filter(id_region == 12) %>% nrow() # 5113
+students %>% filter(id_region == 12 & id_postulante %in% students_with_siblings) %>% nrow() # 1300
+
+schools %>% distinct(rbd) %>% nrow() # 6421
+schools %>% filter(id_region == 12) %>% distinct(rbd) %>% nrow() # 61
+```
+
+```{r}
+df <- merge(pref, students, all.x=TRUE, by='id_postulante')
+```
+
+```{r}
+df %>% nrow() # 874565
+df %>% filter(id_region == 12) %>% nrow() # 15426
+```
+
+```{r}
+head(dat)
+```
+```{r}
+dat %>% group_by(cod_nivel_main) %>% tally()
+```
+
+
+```{r}
+dat <- readRDS(paste(dropbox_dir, 'Capacity expansion in stable matching/Code/R/intermediate_data/application_and_enrollment_2018.rds',sep=''))
+```
+
+```{r}
+tot <- dat %>% filter(number_of_applications_main > 0) %>% nrow()
+dat %>% dplyr::summarise(assigned_main = sum(!is.na(rbd_main)/tot),
+                   assigned_top_main = sum(preferencia_postulante_main == 1, na.rm=TRUE)/tot, assigned_current_main = sum(rbd_main == RBD_2018, na.rm=TRUE)/tot)
+```
+
+```{r}
+head(dat)
+```
+
+
+
