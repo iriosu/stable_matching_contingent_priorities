@@ -1,91 +1,302 @@
 ---
-title: "Analysis Enrollment"
+title: "Descriptive stats"
 output:
   pdf_document:
     keep_tex:  true
     latex_engine: xelatex
   html_document: default
+header-includes:
+   - \usepackage{floatrow}
+   - \floatsetup[figure]{capposition=top}
 ---
 
-```{r}
-rm(list=ls())
+```{r load_libraries, echo=FALSE, warning=FALSE, message=FALSE}
+rm(list = ls())
 library(dplyr)
 library(tidyr)
 library(magrittr)
-library(AER)
-library(stargazer)
-library(ggplot2)
-library(data.table)
-# library(reshape)
-library(reshape2)
-library(knitr) 
+library(knitr)
 library(kableExtra)
-library(magick)
+library(ggplot2)
+library(igraph)
+
+knitr::opts_knit$set(root.dir = normalizePath("../.."))
+
+loaded_packages <- sessionInfo()$otherPkgs
+if (!is.null(loaded_packages)) {
+  sapply(loaded_packages, function(pkg) pkg$Version)
+} else {
+  cat("No additional packages loaded.\n")
+}
 ```
 
 # Load Data
 
-```{r}
-dropbox_dir <- '~/Dropbox/'
+```{r set_directories, echo=FALSE, warning=FALSE, message=FALSE}
+year <- 2023
+region <- "Magallanes"
+home_dir <- getwd()
+plot_dir <- paste(home_dir, "/plots/", sep = "")
+data_dir <- paste(home_dir, "/code/R/intermediate_data/", region, "/", year, sep = "")
 ```
 
-
-```{r}
-pref <- read.csv(paste(dropbox_dir, 'Capacity expansion in stable matching/Data/2018/preferencias.csv',sep=''), sep=";")
-schools <- read.csv(paste(dropbox_dir, 'Capacity expansion in stable matching/Data/2018/cursos.csv',sep=''), sep=";")
-students <- read.csv(paste(dropbox_dir, 'Capacity expansion in stable matching/Data/2018/postulantes.csv',sep=''), sep=";")
-siblings <- read.csv(paste(dropbox_dir, 'SAE - Personal/Code/Boris/input/pares_hermanos.csv',sep=''), sep=";")
+```{r load_data, echo=FALSE, warning=FALSE, message=FALSE}
+pref <- read.csv(paste(data_dir, "/pref_students.csv", sep = ""), sep = ",", header = TRUE)
+schools <- read.csv(paste(data_dir, "/capacities.csv", sep = ""), sep = ",", header = TRUE)
+siblings <- read.csv(paste(data_dir, "/siblings.csv", sep = ""), sep = ",", header = TRUE)
 ```
 
-```{r}
-students_with_siblings <- unique(union(siblings$id_postulante, siblings$id_hermano))
+# Descriptive stats
+
+```{r preprocess_data, echo=FALSE, warning=FALSE, message=FALSE}
+schools <- schools %>%
+  dplyr::mutate(
+    curso_tmp = sub("^[^_]+_", "", rbd_cc),
+    cc_label = case_when(
+      substr(curso_tmp, 2, 3) == "11" ~ substr(curso_tmp, 1, 1),
+      substr(curso_tmp, 1, 1) == "4" & substr(curso_tmp, 2, 3) == "01" ~ "PreK",
+      substr(curso_tmp, 1, 1) == "5" & substr(curso_tmp, 2, 3) == "01" ~ "K",
+      TRUE ~ as.character(as.integer(substr(curso_tmp, 1, 1)) + 8L)
+    )
+  ) %>%
+  dplyr::select(-curso_tmp)
+
+pref <- pref %>%
+  dplyr::mutate(
+    curso_tmp = sub("^[^_]+_", "", rbd_cc),
+    cc_label = case_when(
+      substr(curso_tmp, 2, 3) == "11" ~ substr(curso_tmp, 1, 1),
+      substr(curso_tmp, 1, 1) == "4" & substr(curso_tmp, 2, 3) == "01" ~ "PreK",
+      substr(curso_tmp, 1, 1) == "5" & substr(curso_tmp, 2, 3) == "01" ~ "K",
+      TRUE ~ as.character(as.integer(substr(curso_tmp, 1, 1)) + 8L)
+    )
+  ) %>%
+  dplyr::select(-curso_tmp)
+
+# Any siblings
+sib_graph <- graph_from_data_frame(
+  data.frame(from = siblings$mrun_1, to = siblings$mrun_2),
+  directed = FALSE
+)
+comp <- components(sib_graph)
+sibling_counts <- data.frame(
+  mrun       = as.integer(names(comp$membership)),
+  n_siblings = comp$csize[comp$membership] - 1
+)
+
+students <- pref %>%
+  group_by(mrun, cc_label) %>%
+  dplyr::summarise(num_apps = n()) %>%
+  ungroup() %>%
+  left_join(sibling_counts, by = "mrun") %>%
+  dplyr::mutate(n_siblings = ifelse(is.na(n_siblings), 0, n_siblings)) %>%
+  dplyr::mutate(cc_label = factor(cc_label, levels = c("PreK", "K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12")))
+
+# Same level siblings
+aux <- siblings %>%
+  left_join(students %>% select(mrun, cc_label), by = c("mrun_1" = "mrun")) %>%
+  rename(cc_label_1 = cc_label) %>%
+  left_join(students %>% select(mrun, cc_label), by = c("mrun_2" = "mrun")) %>%
+  rename(cc_label_2 = cc_label) %>%
+  filter(cc_label_1 == cc_label_2)
+
+sib_graph <- graph_from_data_frame(
+  data.frame(from = aux$mrun_1, to = aux$mrun_2),
+  directed = FALSE
+)
+comp <- components(sib_graph)
+sibling_counts <- data.frame(
+  mrun = as.integer(names(comp$membership)),
+  n_siblings_same_level = comp$csize[comp$membership] - 1
+)
+
+students %<>%
+  left_join(sibling_counts, by = "mrun") %>%
+  dplyr::mutate(n_siblings_same_level = ifelse(is.na(n_siblings_same_level), 0, n_siblings_same_level))
 ```
 
+```{r plot_distribution_students_per_level, echo=FALSE, warning=FALSE, message=FALSE}
+students %>%
+  dplyr::mutate(
+    sibling_status = dplyr::case_when(
+      n_siblings_same_level > 0 ~ "Same-level siblings",
+      n_siblings > 0 ~ "Other siblings",
+      TRUE ~ "No siblings"
+    ),
+    sibling_status = factor(sibling_status, levels = c("No siblings", "Other siblings", "Same-level siblings"))
+  ) %>%
+  ggplot(aes(x = cc_label, fill = sibling_status)) +
+  geom_bar() +
+  scale_fill_manual(
+    values = c(
+      "No siblings"          = "gray70",
+      "Other siblings"       = "gray30",
+      "Same-level siblings"  = "gray10"
+    ),
+    name = NULL
+  ) +
+  labs(x = "Level", y = "Number of Students") +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    legend.position = "bottom",
+    legend.box = "horizontal"
+  ) +
+  guides(
+    fill = guide_legend(nrow = 1, ncol = 3, reverse = TRUE)
+  )
 
-Note: there are some schools that have different codigo de ensenanza. The reason is that you may have the same school offering morning and afternoon, so this is the same school but with two different codes. Admission to those is separate, so that is why we consider them as different schools.
-
-
-```{r}
-students %>% nrow() # 274990
-students %>% filter(id_postulante %in% students_with_siblings) %>% nrow() # 44810
-
-students %>% filter(id_region == 12) %>% nrow() # 5113
-students %>% filter(id_region == 12 & id_postulante %in% students_with_siblings) %>% nrow() # 1300
-
-schools %>% distinct(rbd) %>% nrow() # 6421
-schools %>% filter(id_region == 12) %>% distinct(rbd) %>% nrow() # 61
+ggsave(paste0(plot_dir, "distribution_applicants_per_level_", region, "_", year, ".pdf"), width = 8, height = 6)
 ```
 
-```{r}
-df <- merge(pref, students, all.x=TRUE, by='id_postulante')
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+data_all_dir <- paste(home_dir, "/code/R/intermediate_data/", "All", "/", year, sep = "")
+pref <- read.csv(paste(data_all_dir, "/pref_students.csv", sep = ""), sep = ",", header = TRUE)
+schools <- read.csv(paste(data_all_dir, "/capacities.csv", sep = ""), sep = ",", header = TRUE)
+siblings <- read.csv(paste(data_all_dir, "/siblings.csv", sep = ""), sep = ",", header = TRUE)
 ```
 
-```{r}
-df %>% nrow() # 874565
-df %>% filter(id_region == 12) %>% nrow() # 15426
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+stats <- schools %>%
+  group_by(cod_reg) %>%
+  dplyr::summarise(num_schools = n(), num_seats = sum(vacantes)) %>%
+  ungroup() %>%
+  left_join(pref %>%
+    group_by(cod_reg) %>%
+    dplyr::summarise(num_students = n_distinct(mrun), num_applications = n()), by = "cod_reg") %>%
+  left_join(siblings %>%
+    pivot_longer(
+      cols = c(mrun_1, mrun_2, cod_reg_1, cod_reg_2, cc_label_1, cc_label_2),
+      names_to = c(".value", "idx"),
+      names_pattern = "(.+)_(\\d+)"
+    ) %>%
+    distinct(cod_reg, mrun) %>%
+    count(cod_reg, name = "num_siblings") %>%
+    ungroup(), by = "cod_reg") %>%
+  left_join(siblings %>% filter(cc_label_1 == cc_label_2) %>%
+    pivot_longer(
+      cols = c(mrun_1, mrun_2, cod_reg_1, cod_reg_2, cc_label_1, cc_label_2),
+      names_to = c(".value", "idx"),
+      names_pattern = "(.+)_(\\d+)"
+    ) %>%
+    distinct(cod_reg, mrun) %>%
+    count(cod_reg, name = "num_siblings_same_level") %>%
+    ungroup(), by = "cod_reg") %>%
+  dplyr::mutate(
+    pct_students_with_siblings = num_siblings / num_students,
+    pct_students_with_siblings_same_level = num_siblings_same_level / num_students,
+    region_label = case_when(
+      cod_reg == 1 ~ "Tarapaca",
+      cod_reg == 2 ~ "Antofagasta",
+      cod_reg == 3 ~ "Atacama",
+      cod_reg == 4 ~ "Coquimbo",
+      cod_reg == 5 ~ "Valparaíso",
+      cod_reg == 6 ~ "OHiggins",
+      cod_reg == 7 ~ "Maule",
+      cod_reg == 8 ~ "Biobio",
+      cod_reg == 9 ~ "Araucania",
+      cod_reg == 10 ~ "Lagos",
+      cod_reg == 11 ~ "Aysen",
+      cod_reg == 12 ~ "Magallanes",
+      cod_reg == 13 ~ "Metropolitana",
+      cod_reg == 14 ~ "Rios",
+      cod_reg == 15 ~ "Arica",
+      cod_reg == 16 ~ "Nuble",
+      TRUE ~ NA_character_
+    )
+  )
+stats_all <- cbind(
+  schools %>% dplyr::summarise(num_schools = n(), num_seats = sum(vacantes)) %>% ungroup(),
+  pref %>% ungroup() %>% dplyr::summarise(num_students = n_distinct(mrun), num_applications = n()),
+  siblings %>% dplyr::select(mrun_1, mrun_2) %>% pivot_longer(cols = c(mrun_1, mrun_2), names_to = "source", values_to = "mrun") %>%
+    distinct(mrun) %>% count(name = "num_siblings"),
+  siblings %>% filter(cc_label_1 == cc_label_2) %>% dplyr::select(mrun_1, mrun_2) %>% pivot_longer(cols = c(mrun_1, mrun_2), names_to = "source", values_to = "mrun") %>%
+    distinct(mrun) %>% count(name = "num_siblings_same_level")
+) %>%
+  dplyr::mutate(
+    pct_students_with_siblings = num_siblings / num_students,
+    pct_students_with_siblings_same_level = num_siblings_same_level / num_students,
+    region_label = "Overall"
+  )
+
+stats <- rbind(stats %>% dplyr::select(-cod_reg), stats_all)
 ```
 
-```{r}
-head(dat)
-```
-```{r}
-dat %>% group_by(cod_nivel_main) %>% tally()
-```
-
-
-```{r}
-dat <- readRDS(paste(dropbox_dir, 'Capacity expansion in stable matching/Code/R/intermediate_data/application_and_enrollment_2018.rds',sep=''))
-```
-
-```{r}
-tot <- dat %>% filter(number_of_applications_main > 0) %>% nrow()
-dat %>% dplyr::summarise(assigned_main = sum(!is.na(rbd_main)/tot),
-                   assigned_top_main = sum(preferencia_postulante_main == 1, na.rm=TRUE)/tot, assigned_current_main = sum(rbd_main == RBD_2018, na.rm=TRUE)/tot)
-```
-
-```{r}
-head(dat)
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
+kable(stats %>% dplyr::select(region_label, num_schools, num_seats, num_students, num_applications, num_siblings, pct_students_with_siblings, num_siblings_same_level, pct_students_with_siblings_same_level),
+  format =
+    "latex",
+  booktabs = T,
+  col.names = c("Region", "N", "Seats", "N", "Applications", "N", "\\%", "N", "\\%"), linesep = "",
+  align = c("l", "c", "c", "c", "c", "c", "c", "c", "c"),
+  row.names = FALSE,
+  escape = F,
+  caption = "Summary Statistics by Region, Admissions Process 2023-2024",
+  label = "general summary stats",
+  position = "H", digits = 3
+) %>%
+  add_header_above(c(" " = 1, "Schools" = 2, "Students" = 2, "Any" = 2, "Same Level" = 2)) %>%
+  add_header_above(c(" " = 5, "Siblings" = 4))
 ```
 
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+stats <- schools %>%
+  group_by(cod_reg) %>%
+  dplyr::summarise(num_schools = n(), num_seats = sum(vacantes)) %>%
+  ungroup() %>%
+  left_join(pref %>%
+    group_by(cod_reg) %>%
+    dplyr::summarise(num_students = n_distinct(mrun), num_applications = n()), by = "cod_reg") %>%
+  left_join(siblings %>%
+    dplyr::rename(cod_reg = cod_reg_1) %>%
+    group_by(cod_reg) %>%
+    dplyr::summarise(n = n(), nm = sum(mismo_nivel), pct_m = nm / n, nf = sum(postula_en_bloque), pct_f = nf / n) %>%
+    ungroup(), by = "cod_reg") %>%
+  dplyr::mutate(
+    region_label = case_when(
+      cod_reg == 1 ~ "Tarapaca",
+      cod_reg == 2 ~ "Antofagasta",
+      cod_reg == 3 ~ "Atacama",
+      cod_reg == 4 ~ "Coquimbo",
+      cod_reg == 5 ~ "Valparaíso",
+      cod_reg == 6 ~ "OHiggins",
+      cod_reg == 7 ~ "Maule",
+      cod_reg == 8 ~ "Biobio",
+      cod_reg == 9 ~ "Araucania",
+      cod_reg == 10 ~ "Lagos",
+      cod_reg == 11 ~ "Aysen",
+      cod_reg == 12 ~ "Magallanes",
+      cod_reg == 13 ~ "Metropolitana",
+      cod_reg == 14 ~ "Rios",
+      cod_reg == 15 ~ "Arica",
+      cod_reg == 16 ~ "Nuble",
+      TRUE ~ NA_character_
+    )
+  )
 
+stats_all <- cbind(
+  schools %>% dplyr::summarise(num_schools = n(), num_seats = sum(vacantes)) %>% ungroup(),
+  pref %>% ungroup() %>% dplyr::summarise(num_students = n_distinct(mrun), num_applications = n()),
+  siblings %>% dplyr::summarise(n = n(), nm = sum(mismo_nivel), pct_m = nm / n, nf = sum(postula_en_bloque), pct_f = nf / n) %>% ungroup()
+) %>%
+  dplyr::mutate(region_label = "Overall")
 
+stats <- rbind(stats %>% dplyr::select(-cod_reg), stats_all)
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
+kable(stats %>% dplyr::select(region_label, num_schools, num_seats, num_students, num_applications, n, nm, pct_m, nf, pct_f),
+  format =
+    "latex",
+  booktabs = T,
+  col.names = c("Region", "N", "Seats", "N", "Applications", "N", "N", "\\%", "N", "\\%"), linesep = "",
+  align = c("l", "c", "c", "c", "c", "c", "c", "c", "c", "c"),
+  row.names = FALSE,
+  escape = F,
+  caption = "Summary Statistics by Region, Admissions Process 2023-2024",
+  label = "general summary stats",
+  position = "H", digits = 3
+) %>%
+  add_header_above(c(" " = 1, "Schools" = 2, "Students" = 2, "Pairs" = 1, "Same Level" = 2, "Block" = 2)) %>%
+  add_header_above(c(" " = 5, "Siblings" = 5))
+```
