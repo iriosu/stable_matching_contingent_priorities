@@ -227,36 +227,3 @@ Results are written to `../outputs/new_simulations/`:
 
 Reported statistics include: number of solved instances, average preference of matched students, top-preference assignments, unassigned students, siblings together, and the three separation categories from the paper (separated-none, separated-one, separated-both), plus singleton/sibling breakdowns.
 
----
-
-## Reproducing specific paper tables
-
-| Paper table | Configuration |
-|---|---|
-| Table 1 (main) | `region="Magallanes"`, `tie_breaker="mtbf"`, `methods=["SOSM","Descending","Soft","Hard","FOSM"]`, `num_sims=100` |
-| Table 2 (Hybrid sweep) | `methods=["Soft"]` and add multiple `Hybrid-{ζ}` entries to the registry for ζ ∈ {280, 290, 300, 310, 320} |
-| Table 3 Panel 2 (no lotteries, Rank) | `methods=["Hard-NTB"]` with `objective="SOSM"` |
-| Table 3 Panel 2 (no lotteries, Receivers) | Same but with `objective="ROSM"` or `"MXSM"` |
-| Table 7 (Appendix D.3) | `methods=["Descending","Ascending"]`, `tie_breaker="mtb"` (or `"stb"`) |
-
----
-
-## Common issues
-
-**Gurobi license errors.** Confirm `gurobipy` works in isolation: `python -c "import gurobipy; gurobipy.Model()"`. Academic licenses are free; multi-process runs share a single-user license without issues, but token-locked floating licenses may not have enough seats for 8 concurrent solves.
-
-**`FileNotFoundError: instance.txt`** — the `R/intermediate_data/{region}/{year}/instance.txt` file isn't where the script expects. Check paths or generate it via `generate_inputs.write_instance_from_csv(...)`.
-
-**`AbsoluteSoft` infeasibility on Hybrid-320.** Expected — about 20% of lotteries cannot satisfy ζ=320. Affected sims appear as `solved=0` and are excluded from means; this is what the paper reports.
-
-**Heuristic phases look single-threaded in `htop`.** They are single-threaded *per process*, but with `NUM_CORES=8` you have 8 such processes running concurrently, each on a different sim. Look for 8 separate Python processes, not one multi-threaded one.
-
----
-
-## Citation
-
-If you use this code, please cite:
-
-> *Stable Matching with Contingent Priorities*, Management Science (forthcoming).
-
-For the family-aware heuristics in `mechanisms.py` and `new_simulations.py`, also cite the companion paper.
