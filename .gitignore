@@ -16,3 +16,17 @@ __pycache__/
 *.fls
 *.log
 *.synctex.gz
+
+# Overleaf Connect
+.overleafconnect
+*.bbl
+*.blg
+*.out
+*.toc
+*.pdf
+*.nav
+*.snm
+*.vrb
+*.lot
+*.lof
+%OUTDIR%/
