@@ -255,7 +255,7 @@ def SequentialBlock(inputs, levels_to_process=None):
     return outputs
 
 
-def Simultaneous(inputs):
+def Simultaneous(inputs, decay=None):
     def UpdatePriorities(in_match, colleges, pref, siblings, siblings_priority, decay=None):
         """
         1. For each program in match, find assigned students
@@ -311,7 +311,7 @@ def Simultaneous(inputs):
             break
         # update priorities of all siblings
         pref_updated, siblings_priority = UpdatePriorities(
-            match[idx], colleges, pref, siblings, siblings_priority
+            match[idx], colleges, pref, siblings, siblings_priority, decay
         )
         idx += 1
 
@@ -482,6 +482,7 @@ if __name__ == "__main__":
 
     out_seq = Sequential((students, colleges, pref, cap, siblings, levels, students_per_level))
     out_sim = Simultaneous((students, colleges, pref, cap, siblings))
+    out_sim_d = Simultaneous((students, colleges, pref, cap, siblings))
     # compare differences in the match between the two algorithms
     match_seq = {
         s: list(out_seq["x_opt"][s].keys())[0] if s in out_seq["x_opt"] else None for s in students
@@ -489,6 +490,11 @@ if __name__ == "__main__":
     match_sim = {
         s: list(out_sim["x_opt"][s].keys())[0] if s in out_sim["x_opt"] else None for s in students
     }
+
+    match_sim_d = {
+        s: list(out_sim["x_opt"][s].keys())[0] if s in out_sim["x_opt"] else None for s in students
+    }
+
     differences = sum([match_seq[s] != match_sim[s] for s in students])
     print("Number of differences in the match between sequential and simultaneous:", differences)
 
