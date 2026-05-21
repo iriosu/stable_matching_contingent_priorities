@@ -6,7 +6,6 @@ import generate_inputs as genin
 import solve_opt
 import pickle
 
-
 random.seed(1)
 np.random.seed(1)
 
@@ -257,7 +256,7 @@ def SequentialBlock(inputs, levels_to_process=None):
 
 
 def Simultaneous(inputs):
-    def UpdatePriorities(in_match, colleges, pref, siblings, siblings_priority):
+    def UpdatePriorities(in_match, colleges, pref, siblings, siblings_priority, decay=None):
         """
         1. For each program in match, find assigned students
         2. Check if the assigned students have siblings applying to that same RBD.
@@ -265,6 +264,13 @@ def Simultaneous(inputs):
 
         Note: in its current implementation, this uses the lottery of the student to break ties among students with siblings priority (i.e., independent rule)
         """
+
+        if decay is not None:
+            siblings_priority = {
+                sib: {k: v * (1 - decay) for k, v in inner.items()}
+                for sib, inner in siblings_priority.items()
+            }
+
         for id_s in in_match:
             # print(id_s, in_match[id_s], siblings[id_s])
             if len(siblings[id_s]) == 0 or in_match[id_s] is None:
