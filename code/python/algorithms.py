@@ -256,7 +256,7 @@ def SequentialBlock(inputs, levels_to_process=None):
 
 
 def Simultaneous(inputs, decay=None):
-    def UpdatePriorities(in_match, colleges, pref, siblings, siblings_priority, decay=None):
+    def UpdatePriorities(in_match, colleges, pref, siblings, siblings_priority, decay):
         """
         1. For each program in match, find assigned students
         2. Check if the assigned students have siblings applying to that same RBD.
