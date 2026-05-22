@@ -482,7 +482,7 @@ if __name__ == "__main__":
 
     out_seq = Sequential((students, colleges, pref, cap, siblings, levels, students_per_level))
     out_sim = Simultaneous((students, colleges, pref, cap, siblings))
-    out_sim_d = Simultaneous((students, colleges, pref, cap, siblings))
+    out_sim_d = Simultaneous((students, colleges, pref, cap, siblings), 0.5)
     # compare differences in the match between the two algorithms
     match_seq = {
         s: list(out_seq["x_opt"][s].keys())[0] if s in out_seq["x_opt"] else None for s in students
@@ -492,7 +492,7 @@ if __name__ == "__main__":
     }
 
     match_sim_d = {
-        s: list(out_sim["x_opt"][s].keys())[0] if s in out_sim["x_opt"] else None for s in students
+        s: list(out_sim_d["x_opt"][s].keys())[0] if s in out_sim_d["x_opt"] else None for s in students
     }
 
     differences = sum([match_seq[s] != match_sim[s] for s in students])
@@ -509,3 +509,18 @@ if __name__ == "__main__":
                 match_sim[s],
                 "in simultaneous.",
             )
+            
+    differences = sum([match_sim[s] != match_sim_d[s] for s in students])
+    print("Number of differences in the match between simultaneous and simultaneous with decay:", differences)
+
+    for s in students:
+        if match_sim[s] != match_sim_d[s]:
+            print(
+                "Student",
+                s,
+                "is matched to",
+                match_sim[s],
+                "in simultaneous and to",
+                match_sim_d[s],
+                "in simultaneous with decay.",
+            )            
