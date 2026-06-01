@@ -649,6 +649,22 @@ def SubRoutine(indat):
                             penalty_unassigned="last_pref",
                             outdir=outdir,
                         )
+                    elif method == "sim":
+                        outputs = alg.Simultaneous(
+                            (students, colleges, pref, cap, siblings),
+                        )
+                    elif method == "rada":
+                        outputs = alg.Simultaneous(
+                            (students, colleges, pref, cap, siblings), decay=1
+                        )
+                    elif method == "size_desc":
+                        outputs = alg.SizeSequential(
+                            (students, colleges, pref, cap, siblings), direction="decreasing"
+                        )
+                    elif method == "size_asc":
+                        outputs = alg.SizeSequential(
+                            (students, colleges, pref, cap, siblings), direction="increasing"
+                        )
                     else:
                         print("***Error: unknown solving method.")
                         sys.exit(1)
@@ -860,21 +876,41 @@ if __name__ == "__main__":
     # extras = None
     # objective = "ROSM"
 
-    methods = ["abs_ntb"]  # -- running local
-    tie_breakers = ["mtbf"]
+    # methods = ["sim"]  # -- running local
+    # tie_breakers = ["stb", "stbf", "mtb", "mtbf"]
+    # regions = ["Magallanes"]
+    # extras = None
+    # objective = "SOSM"
+
+    # RunSimulations(
+    #     indir,
+    #     outdir,
+    #     methods,
+    #     tie_breakers,
+    #     regions,
+    #     penalty_unassigned="last_pref",
+    #     num_sims=100,
+    #     extras=extras,
+    #     num_cores=10,
+    #     objective=objective,  # "SOSM", "ROSM", "MXSM"
+    # )
+
+    # methods = ["rada","size_desc", "size_asc"]  # -- running local
+    methods = ["rada"]  # -- running local
+    tie_breakers = ["stb", "stbf", "mtb", "mtbf"]
     regions = ["Magallanes"]
     extras = None
     objective = "SOSM"
 
     RunSimulations(
         indir,
-        outdir + os.sep + objective,
+        outdir,
         methods,
         tie_breakers,
         regions,
         penalty_unassigned="last_pref",
         num_sims=100,
         extras=extras,
-        num_cores=10,
+        num_cores=20,
         objective=objective,  # "SOSM", "ROSM", "MXSM"
     )

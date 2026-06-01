@@ -1427,94 +1427,6 @@ def DescriptivesComparison(datdir, tabdir, methods=[], tie_breakers=[], region="
         f.close()
 
     if all_tables:
-        # methods = [
-        #     "abs_hard",
-        #     "abs_soft",
-        #     "par_hard",
-        #     "par_soft",
-        #     "max_sib",
-        #     "nosib",
-        #     "desc",
-        #     "asc",
-        # ]
-        # tie_breakers = ["stb", "stbf", "mtb", "mtbf"]
-        # for tb in tie_breakers:
-        #     f = open(tabdir + os.sep + region + "_comparison_" + tb + ".tex", "w")
-        #     f.write(r"\begin{table}" + "\n")
-        #     f.write(
-        #         r"    \caption{Sensitivity to Softness}\label{tab: sensitivity to softness}" + "\n"
-        #     )
-        #     f.write(r"    \centerline{\scalebox{0.85}{\begin{tabular}{lcccccccccccccc}" + "\n")
-        #     f.write(r"        \toprule" + "\n")
-        #     f.write(r"        & \multicolumn{7}{c}{} & \multicolumn{6}{c}{Separated} \\" + "\n")
-        #     f.write(r"        \cmidrule(lr){9-14}" + "\n")
-        #     f.write(
-        #         r"        &  & \multicolumn{2}{c}{Top Pref.} & \multicolumn{2}{c}{Unassigned} & \multicolumn{2}{c}{Together} & \multicolumn{2}{c}{None} & \multicolumn{2}{c}{One} & \multicolumn{2}{c}{Both} \\"
-        #         + "\n"
-        #     )
-        #     f.write(
-        #         r"        \cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}\cmidrule(lr){9-10}\cmidrule(lr){11-12}\cmidrule(lr){13-14}"
-        #         + "\n"
-        #     )
-        #     f.write(
-        #         r"        & Solved & Mean & SE & Mean & SE & Mean & SE & Mean & SE & Mean & SE & Mean & SE \\"
-        #         + "\n"
-        #     )
-        #     f.write(r"        \midrule" + "\n")
-        #     for method in methods:
-        #         label = ""
-        #         if method == "abs_hard":
-        #             label = "Absolute - Hard"
-        #         elif method == "abs_soft":
-        #             label = "Absolute - Soft"
-        #         elif method == "par_hard":
-        #             label = "Partial - Hard"
-        #         elif method == "par_soft":
-        #             label = "Partial - Soft"
-        #         elif method == "max_sib":
-        #             label = "FOSM"
-        #         elif method == "nosib":
-        #             label = "SOSM"
-        #         elif method == "desc":
-        #             label = "Descending"
-        #         elif method == "asc":
-        #             label = "Ascending"
-        #         else:
-        #             pass
-        #         try:
-        #             f.write(
-        #                 "         "
-        #                 + label
-        #                 + " & "
-        #                 + str(stats[method + "_" + tb]["solved"])
-        #                 + " & "
-        #                 + " & ".join(
-        #                     [
-        #                         str(round(stats[method + "_" + tb][outcome]["mean"], 2))
-        #                         + " & "
-        #                         + str(round(stats[method + "_" + tb][outcome]["se"], 2))
-        #                         for outcome in outcomes
-        #                     ]
-        #                 )
-        #                 + r"\\"
-        #                 + "\n"
-        #             )
-        #         except:
-        #             f.write(
-        #                 "         "
-        #                 + label
-        #                 + " & "
-        #                 + str(0)
-        #                 + " & "
-        #                 + " & ".join(["-" + " & " + "-" for outcome in outcomes])
-        #                 + r"\\"
-        #                 + "\n"
-        #             )
-        #     f.write(r"        \bottomrule" + "\n")
-        #     f.write(r"    \end{tabular}}}" + "\n")
-        #     f.write(r"\end{table}" + "\n")
-        #     f.close()
-
         methods = [
             "abs_hard",
             "abs_soft",
@@ -1524,6 +1436,9 @@ def DescriptivesComparison(datdir, tabdir, methods=[], tie_breakers=[], region="
             "nosib",
             "desc",
             "asc",
+            "sim",
+            "size_desc",
+            "size_asc",
         ]
         tie_breakers = ["stb", "stbf", "mtb", "mtbf"]
         for tb in tie_breakers:
@@ -1570,6 +1485,12 @@ def DescriptivesComparison(datdir, tabdir, methods=[], tie_breakers=[], region="
                     label = "Descending"
                 elif method == "asc":
                     label = "Ascending"
+                elif method == "sim":
+                    label = "Simultaneous"
+                elif method == "size_desc":
+                    label = "Size - Descending"
+                elif method == "size_asc":
+                    label = "Size - Ascending"
                 else:
                     pass
                 f.write(

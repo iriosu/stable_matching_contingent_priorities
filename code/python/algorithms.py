@@ -261,6 +261,7 @@ def Simultaneous(inputs, decay=None):
         1. For each program in match, find assigned students
         2. Check if the assigned students have siblings applying to that same RBD.
         3. If there is such a siblings, put them in the top of the list.
+        4. Also, the provider of priority should also get prioritized.
 
         Note: in its current implementation, this uses the lottery of the student to break ties among students with siblings priority (i.e., independent rule)
         """
@@ -280,7 +281,8 @@ def Simultaneous(inputs, decay=None):
                 for p in pref[sib]:
                     # TODO: update priorities only if the school is more preferred than the current match of the sibling
                     if pref[sib][p].split("_")[0] == rbd:  # student gets siblings priority
-                        siblings_priority[sib][pref[sib][p]] = 1
+                        siblings_priority[sib][pref[sib][p]] = 1  # receiver of priority
+                        siblings_priority[id_s][in_match[id_s]] = 1  # provider of priority
 
         out_pref = copy.copy(pref)
         for c in colleges:
@@ -302,7 +304,6 @@ def Simultaneous(inputs, decay=None):
     match = {}
     idx = 0
     while True:
-        print("Iteration", idx)
         # we process all levels at the same time, and update priorities after processing all levels
         match[idx] = DA(students, pref_updated, cap)
 
@@ -320,6 +321,83 @@ def Simultaneous(inputs, decay=None):
         for idx in match
         for id_s in match[idx]
         if match[idx][id_s] is not None
+    }
+    runtime = time.time() - stime
+    outputs = {
+        "status": "completed",
+        "x_opt": x_opt,
+        "runtime": runtime,
+        "num_vars": 0,
+        "num_cols": 0,
+        "mipgap": 0,
+        "nodes": 0,
+    }
+    return outputs
+
+
+def SizeSequential(inputs, direction="decreasing"):
+    def UpdatePriorities(in_match, colleges, pref, siblings, siblings_priority):
+
+        for id_s in in_match:
+            # print(id_s, in_match[id_s], siblings[id_s])
+            if len(siblings[id_s]) == 0 or in_match[id_s] is None:
+                continue
+            rbd = in_match[id_s].split("_")[0]
+            for sib in siblings[id_s]:
+                for p in pref[sib]:
+                    # TODO: update priorities only if the school is more preferred than the current match of the sibling
+                    if pref[sib][p].split("_")[0] == rbd:  # student gets siblings priority
+                        siblings_priority[sib][pref[sib][p]] = 1  # receiver of priority
+                        siblings_priority[id_s][in_match[id_s]] = 1  # provider of priority
+
+        out_pref = copy.copy(pref)
+        for c in colleges:
+            if c not in out_pref:
+                continue
+            sorted_values = sorted(
+                out_pref[c].items(), key=lambda item: (-siblings_priority[item[1]][c], item[0])
+            )
+            sorted_values_only = [value for key, value in sorted_values]
+            out_pref[c] = {p + 1: sorted_values_only[p] for p in range(len(sorted_values_only))}
+
+        return out_pref, siblings_priority
+
+    students, colleges, pref, cap, siblings = inputs
+
+    if direction == "decreasing":
+        sizes_to_process = [
+            idx
+            for idx in sorted(
+                range(max([len(siblings[id_s]) for id_s in siblings]) + 1), reverse=True
+            )
+        ]
+    else:
+        sizes_to_process = [
+            idx for idx in sorted(range(max([len(siblings[id_s]) for id_s in siblings]) + 1))
+        ]
+
+    stime = time.time()
+    siblings_priority = {s: {pref[s][p]: 0 for p in pref[s]} for s in students}
+    pref_updated = copy.copy(pref)
+    match = {}
+    for size in sizes_to_process:
+        students_in_size = {id_s for id_s in students if len(siblings[id_s]) >= size}
+        students_and_schools_in_size = list(set(colleges).union(set(students_in_size)))
+        pref_in_size = {
+            idx: pref_updated[idx] for idx in students_and_schools_in_size if idx in pref_updated
+        }
+        match[size] = DA(students_in_size, pref_in_size, cap)
+
+        # update priorities of all siblings in coming levels
+        pref_updated, siblings_priority = UpdatePriorities(
+            match[size], colleges, pref, siblings, siblings_priority
+        )
+
+    x_opt = {
+        id_s: {match[size][id_s]: 1}
+        for size in match
+        for id_s in match[size]
+        if match[size][id_s] is not None
     }
     runtime = time.time() - stime
     outputs = {
@@ -458,14 +536,14 @@ if __name__ == "__main__":
     home_dir = os.path.expanduser("~")
     if "riosigna" in home_dir:
         dropbox_dir = home_dir + os.sep + "Code"
-        outdir = dropbox_dir + os.sep + "outputs"
     else:
         dropbox_dir = home_dir + os.sep + "Dropbox/Dynamic priorities in stable matching"
-        outdir = dropbox_dir + os.sep + "outputs"
 
     indir = dropbox_dir + os.sep + "Data" + os.sep + "Magallanes" + os.sep + "2023"
-    plotdir = dropbox_dir + os.sep + "plots"
-    tabdir = dropbox_dir + os.sep + "tables"
+    codedir = os.path.dirname(os.getcwd())
+    outdir = codedir + os.sep + "outputs"
+    plotdir = codedir + os.sep + "plots"
+    tabdir = codedir + os.sep + "tables"
 
     tie_breaker = "mtbf"
 
@@ -482,21 +560,35 @@ if __name__ == "__main__":
 
     out_seq = Sequential((students, colleges, pref, cap, siblings, levels, students_per_level))
     out_sim = Simultaneous((students, colleges, pref, cap, siblings))
-    out_sim_d = Simultaneous((students, colleges, pref, cap, siblings), 0.5)
+    out_sim_d = Simultaneous((students, colleges, pref, cap, siblings), 1)
+    out_size_seq_dec = SizeSequential(
+        (students, colleges, pref, cap, siblings), direction="decreasing"
+    )
+
     # compare differences in the match between the two algorithms
     match_seq = {
         s: list(out_seq["x_opt"][s].keys())[0] if s in out_seq["x_opt"] else None for s in students
     }
+    match_size_seq_dec = {
+        s: list(out_size_seq_dec["x_opt"][s].keys())[0] if s in out_size_seq_dec["x_opt"] else None
+        for s in students
+    }
     match_sim = {
         s: list(out_sim["x_opt"][s].keys())[0] if s in out_sim["x_opt"] else None for s in students
     }
-
     match_sim_d = {
-        s: list(out_sim_d["x_opt"][s].keys())[0] if s in out_sim_d["x_opt"] else None for s in students
+        s: list(out_sim_d["x_opt"][s].keys())[0] if s in out_sim_d["x_opt"] else None
+        for s in students
     }
 
     differences = sum([match_seq[s] != match_sim[s] for s in students])
     print("Number of differences in the match between sequential and simultaneous:", differences)
+
+    differences = sum([match_seq[s] != match_size_seq_dec[s] for s in students])
+    print(
+        "Number of differences in the match between sequential and size sequential decreasing:",
+        differences,
+    )
 
     for s in students:
         if match_seq[s] != match_sim[s]:
@@ -509,9 +601,12 @@ if __name__ == "__main__":
                 match_sim[s],
                 "in simultaneous.",
             )
-            
+
     differences = sum([match_sim[s] != match_sim_d[s] for s in students])
-    print("Number of differences in the match between simultaneous and simultaneous with decay:", differences)
+    print(
+        "Number of differences in the match between simultaneous and simultaneous with decay:",
+        differences,
+    )
 
     for s in students:
         if match_sim[s] != match_sim_d[s]:
@@ -523,4 +618,4 @@ if __name__ == "__main__":
                 "in simultaneous and to",
                 match_sim_d[s],
                 "in simultaneous with decay.",
-            )            
+            )

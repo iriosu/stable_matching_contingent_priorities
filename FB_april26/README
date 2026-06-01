@@ -1,0 +1,229 @@
+# Stable Matching with Contingent Priorities — Simulation Code
+
+This directory contains the simulation code for the paper *"Stable Matching with Contingent Priorities"*, which studies school choice mechanisms that promote joint sibling assignment using data from the Chilean school choice system.
+
+The code reproduces all numerical results in the paper (Tables 1–3 and the appendix tables) and supports running additional comparisons against the new family-aware heuristics introduced in the companion paper.
+
+---
+
+## Quick start
+
+Reproduce the main paper results (Table 1, Magallanes 2023) with 100 simulations on 8 cores:
+
+```bash
+python new_simulations.py
+```
+
+Run on a server without losing progress on disconnect:
+
+```bash
+nohup python new_simulations.py > run.log 2>&1 &
+tail -f run.log    # monitor progress
+```
+
+---
+
+## Directory contents
+
+| File | Purpose |
+|---|---|
+| `generate_inputs.py` | Reads instance files; draws lotteries (STB, MTB, STB-F, MTB-F); writes instances from raw CSV data |
+| `algorithms.py` | Deferred Acceptance (`DA`) and the sequential heuristics `Descending` (current Chilean practice, §5.2.2) and `Ascending` (Appendix D.3) |
+| `solve_opt.py` | Gurobi formulations: `AbsoluteHard`, `AbsoluteSoft`, `PartialHard`, `PartialSoft`, `MaxSiblings` (FOSM), `NoSiblings` (SOSM), and the no-tie-breaker variants `AbsoluteHardNTB`, `DescendingNTB` |
+| `mechanisms.py` | New family-aware heuristics from the companion paper: `plain_DA`, `FSD_U`, `SF_Reserve`, `SF_SD`, `SF_DA`, `SF_AP_DA`, `FSD`, `FSD_A` |
+| `family_preferences.py` | Utilities to inspect family preference structure (consistency with master orderings, etc.) |
+| `simulations.py` | Original simulation driver from the paper (Tables 1–3 reproduction) |
+| `new_simulations.py` | Extended simulation driver comparing paper benchmarks against new heuristics |
+
+---
+
+## Setup
+
+### Requirements
+
+- Python 3.8+
+- `numpy`, `pandas`
+- `gurobipy` with a valid Gurobi license (academic licenses are free at [gurobi.com/academia](https://www.gurobi.com/academia/academic-program-and-licenses/))
+
+```bash
+pip install numpy pandas gurobipy
+```
+
+### Expected directory structure
+
+The simulation scripts expect input data one level above the code directory:
+
+```
+project_root/
+├── code/                       # this directory
+│   ├── generate_inputs.py
+│   ├── algorithms.py
+│   ├── solve_opt.py
+│   ├── new_simulations.py
+│   └── ...
+├── R/
+│   └── intermediate_data/      # input instances live here
+│       ├── Magallanes/
+│       │   └── 2023/
+│       │       └── instance.txt
+│       ├── OHiggins/
+│       └── ...
+└── outputs/                    # results are written here
+    └── new_simulations/
+```
+
+Available regions (subject to your data):
+- `Magallanes` (main paper region)
+- `OHiggins`, `Atacama`, `Coquimbo`, `LosLagos`, `Tarapaca`, `Antofagasta`, `Arica`, `Rios` (robustness)
+
+If your `instance.txt` files are missing, generate them first by running `generate_inputs.write_instance_from_csv(indir, outdir, tie_breaker, year)` on the raw CSV data.
+
+---
+
+## Running simulations
+
+### The two drivers
+
+- **`simulations.py`** reproduces Tables 1–3 of the paper exactly. Use this if you want the published numbers.
+- **`new_simulations.py`** is the recommended entry point for new experiments. It compares paper benchmarks against the heuristics in `mechanisms.py` and produces a single combined LaTeX table.
+
+### Configuring `new_simulations.py`
+
+Edit the `__main__` block at the bottom of the file:
+
+```python
+if __name__ == "__main__":
+    REGION = "Magallanes"
+    YEAR = 2023
+    TIE_BREAKER = "mtbf"
+    NUM_SIMS = 100
+    NUM_CORES = 8
+
+    METHODS = [
+        # Paper benchmarks
+        "SOSM", "FOSM", "Descending", "Ascending",
+        "Soft", "Hard", "Hybrid-310", "Hybrid-320", "Hard-NTB",
+        # New heuristics
+        "DA", "FSD-U", "SF-Reserve", "SF-SD", "SF-DA", "SF-AP-DA", "FSD", "FSD-A",
+    ]
+
+    run_simulations(
+        region=REGION, year=YEAR, tie_breaker=TIE_BREAKER,
+        num_sims=NUM_SIMS, num_cores=NUM_CORES, methods=METHODS,
+    )
+```
+
+### Available methods
+
+**Benchmark methods** (from the paper):
+
+| Name | Description | Reference |
+|---|---|---|
+| `SOSM` | Student-Optimal Stable Matching (DA, no sibling priorities) | Gale-Shapley |
+| `FOSM` | Family-Optimal Stable Matching (max siblings together) | §3 |
+| `Descending` | Sequential DA, 12th grade → Pre-K (current Chilean practice) | §5.2.2 |
+| `Ascending` | Sequential DA, Pre-K → 12th grade | Appendix D.3 |
+| `Hard` | Absolute-Hard IP (Formulation 21) | §4.1, Table 1 |
+| `Soft` | Absolute-Soft IP (always feasible) | §5.3, Table 1 |
+| `Hybrid-310` | Absolute-Hybrid with ζ=310 (best feasible-100% point) | §5.3.1, Table 2 |
+| `Hybrid-320` | Absolute-Hybrid with ζ=320 (higher sibs together, ~80% feasible) | Table 2 |
+| `Hard-NTB` | Absolute-Hard without initial lotteries | Appendix E.2.2, Table 3 |
+
+**New heuristics** (from `mechanisms.py`):
+
+| Name | Description |
+|---|---|
+| `DA` | Plain DA with sibling priorities |
+| `FSD-U` | Family Serial Dictatorship — unstructured |
+| `SF-Reserve` | Siblings-First with reserved seats |
+| `SF-SD` | Siblings-First Serial Dictatorship |
+| `SF-DA` | Siblings-First Deferred Acceptance |
+| `SF-AP-DA` | Siblings-First Active-Priority DA |
+| `FSD` | Family Serial Dictatorship (greedy) |
+| `FSD-A` | Family Serial Dictatorship (active priorities) |
+
+### Tie-breaker options
+
+Set `TIE_BREAKER` to one of:
+
+- `"mtb"` — Multiple Tie-Breaking (each school has its own lottery)
+- `"mtbf"` — MTB at the family level (siblings get correlated draws across schools) — **paper default**
+- `"stb"` — Single Tie-Breaking (one global lottery for all schools)
+- `"stbf"` — STB at the family level
+
+Tables 1–3 of the paper all use `"mtbf"`. Appendix D.3 reports robustness under `"mtb"` and `"stb"`.
+
+---
+
+## Running on a server
+
+### Keeping the job alive
+
+Three options, in order of recommended use:
+
+**1. tmux (best for interactive monitoring):**
+
+```bash
+tmux new -s sims
+python new_simulations.py
+# detach: Ctrl+B then D
+# reattach: tmux attach -t sims
+```
+
+**2. nohup (simplest fire-and-forget):**
+
+```bash
+nohup python new_simulations.py > run.log 2>&1 &
+tail -f run.log              # monitor
+pkill -f new_simulations.py  # kill if needed
+```
+
+**3. screen** — same idea as tmux if tmux is not installed.
+
+### Parallelization
+
+The script parallelizes **across simulations** using Python `multiprocessing`. With `NUM_CORES=8` and `NUM_SIMS=100`, you have 8 sims running concurrently on 8 cores; within each sim, methods run sequentially.
+
+**To avoid Gurobi oversubscribing cores**, edit `solve_opt.py` and set `Threads=1` on every Gurobi model. Otherwise each sim's Gurobi solve grabs 4 threads, and 8 × 4 = 32 threads compete for fewer physical cores. With `Threads=1` and `NUM_CORES=8`, you cleanly use 8 physical cores end-to-end.
+
+### Multiple regions
+
+Run regions sequentially inside one script:
+
+```python
+for region in ["Magallanes", "Atacama", "OHiggins", "LosLagos"]:
+    run_simulations(region=region, year=2023, tie_breaker="mtbf",
+                    num_sims=100, num_cores=8, methods=METHODS)
+```
+
+Or in parallel processes if you have enough cores (e.g. 32+ cores → 4 regions × 8 cores each):
+
+```bash
+nohup python new_simulations.py --region Magallanes --num_cores 8 > log_M.txt 2>&1 &
+nohup python new_simulations.py --region Atacama    --num_cores 8 > log_A.txt 2>&1 &
+```
+
+(Requires adding `argparse` to the `__main__` block — see the parallelization section in the project notes.)
+
+### Runtime estimates
+
+Per sim, on the Magallanes 2023 instance:
+- Heuristics (`SOSM`, `Descending`, `Ascending`, all `mechanisms.py` methods): seconds
+- IP solves (`Hard`, `Soft`, `Hybrid-*`, `Hard-NTB`, `FOSM`): ~10–20 s each
+
+For a full Magallanes run with 100 sims, all methods, on 8 cores: roughly **2 hours**. Larger regions (OHiggins, LosLagos): **3–6 hours**.
+
+---
+
+## Outputs
+
+Results are written to `../outputs/new_simulations/`:
+
+| File | Contents |
+|---|---|
+| `{region}_{year}_{tb}_raw_{N}sims.csv` | One row per (sim, method) pair — every individual result |
+| `{region}_{year}_{tb}_summary_{N}sims.csv` | One row per method — means and standard errors across sims |
+| `{region}_{year}_{tb}_table_{N}sims.tex` | LaTeX file with two tables (main comparison + additional metrics), ready to `\input{}` |
+
+Reported statistics include: number of solved instances, average preference of matched students, top-preference assignments, unassigned students, siblings together, and the three separation categories from the paper (separated-none, separated-one, separated-both), plus singleton/sibling breakdowns.
+
