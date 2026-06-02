@@ -661,9 +661,21 @@ def SubRoutine(indat):
                         outputs = alg.SizeSequential(
                             (students, colleges, pref, cap, siblings), direction="decreasing"
                         )
+                    elif method == "lsda":
+                        outputs = alg.SizeSequential(
+                            (students, colleges, pref, cap, siblings),
+                            direction="decreasing",
+                            fix=True,
+                        )
                     elif method == "size_asc":
                         outputs = alg.SizeSequential(
                             (students, colleges, pref, cap, siblings), direction="increasing"
+                        )
+                    elif method == "slda":
+                        outputs = alg.SizeSequential(
+                            (students, colleges, pref, cap, siblings),
+                            direction="increasing",
+                            fix=True,
                         )
                     else:
                         print("***Error: unknown solving method.")
@@ -896,7 +908,7 @@ if __name__ == "__main__":
     # )
 
     # methods = ["rada","size_desc", "size_asc"]  # -- running local
-    methods = ["rada"]  # -- running local
+    methods = ["lsda", "slda"]  # -- running local
     tie_breakers = ["stb", "stbf", "mtb", "mtbf"]
     regions = ["Magallanes"]
     extras = None

@@ -335,7 +335,7 @@ def Simultaneous(inputs, decay=None):
     return outputs
 
 
-def SizeSequential(inputs, direction="decreasing"):
+def SizeSequential(inputs, direction="decreasing", fix=False):
     def UpdatePriorities(in_match, colleges, pref, siblings, siblings_priority):
 
         for id_s in in_match:
@@ -345,7 +345,6 @@ def SizeSequential(inputs, direction="decreasing"):
             rbd = in_match[id_s].split("_")[0]
             for sib in siblings[id_s]:
                 for p in pref[sib]:
-                    # TODO: update priorities only if the school is more preferred than the current match of the sibling
                     if pref[sib][p].split("_")[0] == rbd:  # student gets siblings priority
                         siblings_priority[sib][pref[sib][p]] = 1  # receiver of priority
                         siblings_priority[id_s][in_match[id_s]] = 1  # provider of priority
@@ -361,6 +360,16 @@ def SizeSequential(inputs, direction="decreasing"):
             out_pref[c] = {p + 1: sorted_values_only[p] for p in range(len(sorted_values_only))}
 
         return out_pref, siblings_priority
+
+    def UpdateCapacities(in_match, in_cap, fix):
+        out_cap = copy.copy(in_cap)
+        if not fix:
+            return out_cap
+        else:
+            for id_s in in_match:
+                if in_match[id_s] is not None:
+                    out_cap[in_match[id_s]] -= 1
+            return out_cap
 
     students, colleges, pref, cap, siblings = inputs
 
@@ -379,19 +388,26 @@ def SizeSequential(inputs, direction="decreasing"):
     stime = time.time()
     siblings_priority = {s: {pref[s][p]: 0 for p in pref[s]} for s in students}
     pref_updated = copy.copy(pref)
+    cap_updated = copy.copy(cap)
     match = {}
     for size in sizes_to_process:
-        students_in_size = {id_s for id_s in students if len(siblings[id_s]) >= size}
+        students_in_size = (
+            {id_s for id_s in students if len(siblings[id_s]) >= size}
+            if not fix
+            else {id_s for id_s in students if len(siblings[id_s]) == size}
+        )
         students_and_schools_in_size = list(set(colleges).union(set(students_in_size)))
         pref_in_size = {
             idx: pref_updated[idx] for idx in students_and_schools_in_size if idx in pref_updated
         }
-        match[size] = DA(students_in_size, pref_in_size, cap)
+        match[size] = DA(students_in_size, pref_in_size, cap_updated)
 
-        # update priorities of all siblings in coming levels
+        # update priorities of all siblings in coming families
         pref_updated, siblings_priority = UpdatePriorities(
             match[size], colleges, pref, siblings, siblings_priority
         )
+        # update capacities of all schools
+        cap_updated = UpdateCapacities(match[size], cap_updated, fix)
 
     x_opt = {
         id_s: {match[size][id_s]: 1}
@@ -564,6 +580,9 @@ if __name__ == "__main__":
     out_size_seq_dec = SizeSequential(
         (students, colleges, pref, cap, siblings), direction="decreasing"
     )
+    out_lsda = SizeSequential(
+        (students, colleges, pref, cap, siblings), direction="decreasing", fix=True
+    )
 
     # compare differences in the match between the two algorithms
     match_seq = {
@@ -580,6 +599,10 @@ if __name__ == "__main__":
         s: list(out_sim_d["x_opt"][s].keys())[0] if s in out_sim_d["x_opt"] else None
         for s in students
     }
+    match_lsda = {
+        s: list(out_lsda["x_opt"][s].keys())[0] if s in out_lsda["x_opt"] else None
+        for s in students
+    }
 
     differences = sum([match_seq[s] != match_sim[s] for s in students])
     print("Number of differences in the match between sequential and simultaneous:", differences)
@@ -587,6 +610,12 @@ if __name__ == "__main__":
     differences = sum([match_seq[s] != match_size_seq_dec[s] for s in students])
     print(
         "Number of differences in the match between sequential and size sequential decreasing:",
+        differences,
+    )
+
+    differences = sum([match_lsda[s] != match_size_seq_dec[s] for s in students])
+    print(
+        "Number of differences in the match between LSDA and size sequential decreasing:",
         differences,
     )
 

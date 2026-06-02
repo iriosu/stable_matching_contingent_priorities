@@ -1439,6 +1439,8 @@ def DescriptivesComparison(datdir, tabdir, methods=[], tie_breakers=[], region="
             "sim",
             "size_desc",
             "size_asc",
+            "lsda",
+            "slda",
         ]
         tie_breakers = ["stb", "stbf", "mtb", "mtbf"]
         for tb in tie_breakers:
@@ -1487,10 +1489,16 @@ def DescriptivesComparison(datdir, tabdir, methods=[], tie_breakers=[], region="
                     label = "Ascending"
                 elif method == "sim":
                     label = "Simultaneous"
+                elif method == "rada":
+                    label = "RA-DA"
                 elif method == "size_desc":
                     label = "Size - Descending"
                 elif method == "size_asc":
                     label = "Size - Ascending"
+                elif method == "lsda":
+                    label = "LS-DA"
+                elif method == "slda":
+                    label = "SL-DA"
                 else:
                     pass
                 f.write(
