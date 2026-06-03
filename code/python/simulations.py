@@ -914,7 +914,7 @@ if __name__ == "__main__":
     # )
 
     # methods = ["rada","size_desc", "size_asc"]  # -- running local
-    methods = ["lsda", "slda"]  # -- running local
+    methods = ["rada", "sim", "lsda", "slda"]  # -- running local
     tie_breakers = ["stb", "stbf", "mtb", "mtbf"]
     regions = ["Magallanes"]
     extras = None
