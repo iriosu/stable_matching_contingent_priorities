@@ -1437,6 +1437,7 @@ def DescriptivesComparison(datdir, tabdir, methods=[], tie_breakers=[], region="
             "desc",
             "asc",
             "sim",
+            "rada",
             "size_desc",
             "size_asc",
             "lsda",
