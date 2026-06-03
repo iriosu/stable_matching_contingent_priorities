@@ -9,6 +9,7 @@ import pickle
 random.seed(1)
 np.random.seed(1)
 
+
 """
 ---------------------------
 ALGORITHMS
@@ -79,11 +80,109 @@ def DA(students, pref, cap):
     return match
 
 
-"""
----------------------------
-HEURISTICS
----------------------------
-"""
+def RADA(inputs, decay=None):
+    def UpdatePriorities(in_match, in_siblings_priority, decay):
+        """
+        1. For each program in match, find assigned students
+        2. Check if the assigned students have siblings applying to that same RBD.
+        3. If there is such a siblings, put them in the top of the list.
+        4. Also, the provider of priority should also get prioritized.
+
+        Note: in its current implementation, this uses the lottery of the student to break ties among students with siblings priority (i.e., independent rule)
+        """
+
+        if decay is not None:
+            out_siblings_priority = {
+                sib: {k: v * (1 - decay) for k, v in inner.items()}
+                for sib, inner in in_siblings_priority.items()
+            }
+        else:
+            out_siblings_priority = copy.deepcopy(in_siblings_priority)
+
+        for id_s in in_match:
+            if len(siblings[id_s]) == 0 or in_match[id_s] is None:
+                continue
+            rbd = in_match[id_s].split("_")[0]
+            id_c = in_match[id_s]
+            # check if the assigned student can be effective provider
+            is_z = (
+                len(
+                    [
+                        sp
+                        for sp in range(1, reverse_pref[id_c][id_s])
+                        if in_match[pref[id_c][sp]] is None
+                        or reverse_pref[pref[id_c][sp]][id_c]
+                        <= reverse_pref[pref[id_c][sp]][in_match[pref[id_c][sp]]]
+                    ]
+                )
+                <= cap[id_c] - 1
+            )  # 1 is rightfully claims spot
+
+            # for sp in range(1, reverse_pref[id_c][id_s]):
+            #     id_sp = pref[id_c][sp]
+            #     reverse_pref[id_c][id_sp]
+            #     print(id_sp, in_match[id_sp], siblings[id_sp])
+
+            is_w = (
+                len(
+                    [
+                        sib
+                        for sib in siblings[id_s]
+                        if in_match[sib] is not None and in_match[sib].split("_")[0] == rbd
+                    ]
+                )
+                >= 1
+            )  # 1 if any other siblings currently assigned to the same RBD
+
+            # for sib in siblings[id_s]:
+            #     print(sib, in_match[sib], siblings[sib])
+
+            out_siblings_priority[id_s][in_match[id_s]] = max(
+                out_siblings_priority[id_s][in_match[id_s]], int(is_z and is_w)
+            )  # provider of priority
+            for sib in siblings[id_s]:
+                for p in pref[sib]:
+                    if pref[sib][p].split("_")[0] == rbd:  # student gets siblings priority
+                        out_siblings_priority[sib][pref[sib][p]] = max(
+                            out_siblings_priority[sib][pref[sib][p]], int(is_z)
+                        )  # receiver of priority
+
+        out_pref = copy.deepcopy(pref)
+        for c in colleges:
+            if c not in out_pref:
+                continue
+            sorted_values = sorted(
+                out_pref[c].items(), key=lambda item: (-out_siblings_priority[item[1]][c], item[0])
+            )
+            sorted_values_only = [value for key, value in sorted_values]
+            out_pref[c] = {p + 1: sorted_values_only[p] for p in range(len(sorted_values_only))}
+
+        return out_pref, out_siblings_priority
+
+    students, colleges, pref, cap, siblings = inputs
+
+    siblings_priority = {s: {pref[s][p]: 0 for p in pref[s]} for s in students}
+    pref_updated = copy.deepcopy(pref)
+    reverse_pref = {id_: {id1: p for p, id1 in prefs.items()} for id_, prefs in pref.items()}
+    match = {}
+    seen_match_keys = set()
+    idx = 0
+    while True:
+        # we process all levels at the same time, and update priorities after processing all levels
+        print("Iteration", idx)
+        match[idx] = DA(students, pref_updated, cap)
+        # update priorities of all siblings
+        pref_updated, siblings_priority = UpdatePriorities(match[idx], siblings_priority, decay)
+
+        match_key = frozenset(match[idx].items())
+        if (
+            match_key in seen_match_keys
+        ):  # stop if this match was seen before (handles both fixed points and cycles)
+            break
+        seen_match_keys.add(match_key)
+        idx += 1
+
+    return match[idx], siblings_priority
 
 
 def Sequential(inputs, levels_to_process=None):
@@ -256,73 +355,15 @@ def SequentialBlock(inputs, levels_to_process=None):
 
 
 def Simultaneous(inputs, decay=None):
-    def UpdatePriorities(in_match, colleges, pref, siblings, siblings_priority, decay):
-        """
-        1. For each program in match, find assigned students
-        2. Check if the assigned students have siblings applying to that same RBD.
-        3. If there is such a siblings, put them in the top of the list.
-        4. Also, the provider of priority should also get prioritized.
-
-        Note: in its current implementation, this uses the lottery of the student to break ties among students with siblings priority (i.e., independent rule)
-        """
-
-        if decay is not None:
-            siblings_priority = {
-                sib: {k: v * (1 - decay) for k, v in inner.items()}
-                for sib, inner in siblings_priority.items()
-            }
-
-        for id_s in in_match:
-            # print(id_s, in_match[id_s], siblings[id_s])
-            if len(siblings[id_s]) == 0 or in_match[id_s] is None:
-                continue
-            rbd = in_match[id_s].split("_")[0]
-            for sib in siblings[id_s]:
-                for p in pref[sib]:
-                    # TODO: update priorities only if the school is more preferred than the current match of the sibling
-                    if pref[sib][p].split("_")[0] == rbd:  # student gets siblings priority
-                        siblings_priority[sib][pref[sib][p]] = 1  # receiver of priority
-                        siblings_priority[id_s][in_match[id_s]] = 1  # provider of priority
-
-        out_pref = copy.copy(pref)
-        for c in colleges:
-            if c not in out_pref:
-                continue
-            sorted_values = sorted(
-                out_pref[c].items(), key=lambda item: (-siblings_priority[item[1]][c], item[0])
-            )
-            sorted_values_only = [value for key, value in sorted_values]
-            out_pref[c] = {p + 1: sorted_values_only[p] for p in range(len(sorted_values_only))}
-
-        return out_pref, siblings_priority
-
-    students, colleges, pref, cap, siblings = inputs
-
+    """
+    Depending on the value of decay, this implements either the simultaneous algorithm (decay = 0 or NA) or RADA (decay = 1).
+    """
     stime = time.time()
-    siblings_priority = {s: {pref[s][p]: 0 for p in pref[s]} for s in students}
-    pref_updated = copy.copy(pref)
-    match = {}
-    idx = 0
-    while True:
-        # we process all levels at the same time, and update priorities after processing all levels
-        match[idx] = DA(students, pref_updated, cap)
-
-        # if there is no change in the match, we stop
-        if idx > 0 and all(match[idx][s] == match[idx - 1][s] for s in match[idx]):
-            break
-        # update priorities of all siblings
-        pref_updated, siblings_priority = UpdatePriorities(
-            match[idx], colleges, pref, siblings, siblings_priority, decay
-        )
-        idx += 1
-
-    x_opt = {
-        id_s: {match[idx][id_s]: 1}
-        for idx in match
-        for id_s in match[idx]
-        if match[idx][id_s] is not None
-    }
+    inputs = (students, colleges, pref, cap, siblings)
+    match, _ = RADA(inputs, decay)
     runtime = time.time() - stime
+
+    x_opt = {id_s: {match[id_s]: 1} for id_s in match if match[id_s] is not None}
     outputs = {
         "status": "completed",
         "x_opt": x_opt,
@@ -335,31 +376,80 @@ def Simultaneous(inputs, decay=None):
     return outputs
 
 
-def SizeSequential(inputs, direction="decreasing", fix=False):
-    def UpdatePriorities(in_match, colleges, pref, siblings, siblings_priority):
-
-        for id_s in in_match:
-            # print(id_s, in_match[id_s], siblings[id_s])
-            if len(siblings[id_s]) == 0 or in_match[id_s] is None:
+def SizeSequential(inputs, direction="decreasing", fix=False, decay=None):
+    def SubsetInstance(size, fix):
+        """
+        This method creates a subinstance consisting of all students with at least (or exactly, if fix is True) size siblings, and all colleges. To define the set of students in the subinstance, we start with those who have at least (or exactly) size siblings, and then we expand to the full connected family components via BFS over the sibling graph. As a result, the subinstance includes all students with at least (or exactly) size siblings, and all their siblings, even those with fewer siblings.
+        It also updates the preferences to keep only the students in the subinstance, preserving the original order.
+        """
+        base = (
+            {id_s for id_s in students if len(siblings[id_s]) >= size}
+            if not fix
+            else {id_s for id_s in students if len(siblings[id_s]) == size and not processed[id_s]}
+        )
+        # expand to full connected family components via BFS over the sibling graph
+        students_in_size = set()
+        visited = set()
+        to_visit = list(base)
+        while to_visit:
+            id_s = to_visit.pop()
+            if id_s in visited or (fix and processed[id_s]):
                 continue
-            rbd = in_match[id_s].split("_")[0]
+            visited.add(id_s)
+            students_in_size.add(id_s)
+            if fix:
+                processed[id_s] = True
             for sib in siblings[id_s]:
-                for p in pref[sib]:
-                    if pref[sib][p].split("_")[0] == rbd:  # student gets siblings priority
-                        siblings_priority[sib][pref[sib][p]] = 1  # receiver of priority
-                        siblings_priority[id_s][in_match[id_s]] = 1  # provider of priority
+                if sib not in visited:
+                    to_visit.append(sib)
 
-        out_pref = copy.copy(pref)
+        # build preferences for subinstance
+        students_and_schools_in_size = list(set(colleges).union(set(students_in_size)))
+        pref_in_size = {}
+        for idx in students_and_schools_in_size:
+            if idx not in pref_updated:
+                continue
+            if idx in colleges:
+                # keep only students who are in students_in_size, preserving original order
+                filtered = [
+                    pref_updated[idx][p]
+                    for p in sorted(pref_updated[idx])
+                    if pref_updated[idx][p] in students_in_size
+                ]
+                pref_in_size[idx] = {p + 1: filtered[p] for p in range(len(filtered))}
+            else:
+                pref_in_size[idx] = pref_updated[idx]
+
+        return students_in_size, pref_in_size
+
+    def UpdatePriorities(sibling_priorities, sibling_priorities_in_size):
+        # update priorities
+        out_sibling_priorities = {
+            id_s: (
+                {
+                    id_c: (
+                        sibling_priorities_in_size[id_s][id_c]
+                        if id_c in sibling_priorities_in_size[id_s]
+                        else sibling_priorities[id_s][id_c]
+                    )
+                    for id_c in sibling_priorities[id_s]
+                }
+                if id_s in sibling_priorities_in_size
+                else sibling_priorities[id_s]
+            )
+            for id_s in sibling_priorities
+        }
+        out_pref = copy.deepcopy(pref_updated)
         for c in colleges:
             if c not in out_pref:
                 continue
             sorted_values = sorted(
-                out_pref[c].items(), key=lambda item: (-siblings_priority[item[1]][c], item[0])
+                pref_updated[c].items(),
+                key=lambda item: (-out_sibling_priorities[item[1]][c], item[0]),
             )
             sorted_values_only = [value for key, value in sorted_values]
             out_pref[c] = {p + 1: sorted_values_only[p] for p in range(len(sorted_values_only))}
-
-        return out_pref, siblings_priority
+        return out_pref, out_sibling_priorities
 
     def UpdateCapacities(in_match, in_cap, fix):
         out_cap = copy.copy(in_cap)
@@ -372,7 +462,6 @@ def SizeSequential(inputs, direction="decreasing", fix=False):
             return out_cap
 
     students, colleges, pref, cap, siblings = inputs
-
     if direction == "decreasing":
         sizes_to_process = [
             idx
@@ -386,27 +475,20 @@ def SizeSequential(inputs, direction="decreasing", fix=False):
         ]
 
     stime = time.time()
-    siblings_priority = {s: {pref[s][p]: 0 for p in pref[s]} for s in students}
+    sibling_priorities = {s: {pref[s][p]: 0 for p in pref[s]} for s in students}
     pref_updated = copy.copy(pref)
     cap_updated = copy.copy(cap)
+    processed = {s: False for s in students}
     match = {}
     for size in sizes_to_process:
-        students_in_size = (
-            {id_s for id_s in students if len(siblings[id_s]) >= size}
-            if not fix
-            else {id_s for id_s in students if len(siblings[id_s]) == size}
+        print("Processing size", size)
+        students_in_size, pref_in_size = SubsetInstance(size, fix)
+        match[size], sibling_priorities_in_size = RADA(
+            (students_in_size, colleges, pref_in_size, cap_updated, siblings), decay
         )
-        students_and_schools_in_size = list(set(colleges).union(set(students_in_size)))
-        pref_in_size = {
-            idx: pref_updated[idx] for idx in students_and_schools_in_size if idx in pref_updated
-        }
-        match[size] = DA(students_in_size, pref_in_size, cap_updated)
-
-        # update priorities of all siblings in coming families
-        pref_updated, siblings_priority = UpdatePriorities(
-            match[size], colleges, pref, siblings, siblings_priority
+        pref_updated, sibling_priorities = UpdatePriorities(
+            sibling_priorities, sibling_priorities_in_size
         )
-        # update capacities of all schools
         cap_updated = UpdateCapacities(match[size], cap_updated, fix)
 
     x_opt = {
@@ -613,9 +695,9 @@ if __name__ == "__main__":
         differences,
     )
 
-    differences = sum([match_lsda[s] != match_size_seq_dec[s] for s in students])
+    differences = sum([match_lsda[s] != match_seq[s] for s in students])
     print(
-        "Number of differences in the match between LSDA and size sequential decreasing:",
+        "Number of differences in the match between LSDA and  sequential:",
         differences,
     )
 
@@ -630,6 +712,12 @@ if __name__ == "__main__":
                 match_sim[s],
                 "in simultaneous.",
             )
+
+    differences = sum([match_sim[s] != match_sim_d[s] for s in students])
+    print(
+        "Number of differences in the match between simultaneous and simultaneous with decay:",
+        differences,
+    )
 
     differences = sum([match_sim[s] != match_sim_d[s] for s in students])
     print(
