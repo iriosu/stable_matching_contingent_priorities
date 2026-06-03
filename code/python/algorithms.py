@@ -359,7 +359,6 @@ def Simultaneous(inputs, decay=None):
     Depending on the value of decay, this implements either the simultaneous algorithm (decay = 0 or NA) or RADA (decay = 1).
     """
     stime = time.time()
-    inputs = (students, colleges, pref, cap, siblings)
     match, _ = RADA(inputs, decay)
     runtime = time.time() - stime
 
