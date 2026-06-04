@@ -176,13 +176,13 @@ def RADA(inputs, decay=None, variant="RADA"):
         if variant == "DA":
             break
         else:
-        match_key = frozenset(match[idx].items())
-        if (
-            match_key in seen_match_keys
-        ):  # stop if this match was seen before (handles both fixed points and cycles)
-            break
-        seen_match_keys.add(match_key)
-        idx += 1
+            match_key = frozenset(match[idx].items())
+            if (
+                match_key in seen_match_keys
+            ):  # stop if this match was seen before (handles both fixed points and cycles)
+                break
+            seen_match_keys.add(match_key)
+            idx += 1
 
     return match[idx], siblings_priority
 
