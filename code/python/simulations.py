@@ -657,10 +657,11 @@ def SubRoutine(indat):
                         outputs = alg.Simultaneous(
                             (students, colleges, pref, cap, siblings), decay=1
                         )
-                    elif method == "size_desc":
+                    elif method == "lsrada":
                         outputs = alg.SizeSequential(
                             (students, colleges, pref, cap, siblings),
                             direction="decreasing",
+                            fix=True,
                             decay=1,
                         )
                     elif method == "lsda":
@@ -669,11 +670,13 @@ def SubRoutine(indat):
                             direction="decreasing",
                             fix=True,
                             decay=1,
+                            variant="DA",
                         )
-                    elif method == "size_asc":
+                    elif method == "slrada":
                         outputs = alg.SizeSequential(
                             (students, colleges, pref, cap, siblings),
                             direction="increasing",
+                            fix=True,
                             decay=1,
                         )
                     elif method == "slda":
@@ -682,6 +685,7 @@ def SubRoutine(indat):
                             direction="increasing",
                             fix=True,
                             decay=1,
+                            variant="DA",
                         )
                     else:
                         print("***Error: unknown solving method.")
@@ -914,7 +918,7 @@ if __name__ == "__main__":
     # )
 
     # methods = ["rada","size_desc", "size_asc"]  # -- running local
-    methods = ["rada", "sim", "lsda", "slda"]  # -- running local
+    methods = ["lsda", "slda", "lsrada", "slrada"]  # -- running local
     tie_breakers = ["stb", "stbf", "mtb", "mtbf"]
     regions = ["Magallanes"]
     extras = None
