@@ -80,7 +80,7 @@ def DA(students, pref, cap):
     return match
 
 
-def RADA(inputs, decay=None):
+def RADA(inputs, decay=None, variant="RADA"):
     def UpdatePriorities(in_match, in_siblings_priority, decay):
         """
         1. For each program in match, find assigned students
@@ -173,7 +173,9 @@ def RADA(inputs, decay=None):
         match[idx] = DA(students, pref_updated, cap)
         # update priorities of all siblings
         pref_updated, siblings_priority = UpdatePriorities(match[idx], siblings_priority, decay)
-
+        if variant == "DA":
+            break
+        else:
         match_key = frozenset(match[idx].items())
         if (
             match_key in seen_match_keys
@@ -375,7 +377,7 @@ def Simultaneous(inputs, decay=None):
     return outputs
 
 
-def SizeSequential(inputs, direction="decreasing", fix=False, decay=None):
+def SizeSequential(inputs, direction="decreasing", fix=False, decay=None, variant="RADA"):
     def SubsetInstance(size, fix):
         """
         This method creates a subinstance consisting of all students with at least (or exactly, if fix is True) size siblings, and all colleges. To define the set of students in the subinstance, we start with those who have at least (or exactly) size siblings, and then we expand to the full connected family components via BFS over the sibling graph. As a result, the subinstance includes all students with at least (or exactly) size siblings, and all their siblings, even those with fewer siblings.
@@ -483,7 +485,7 @@ def SizeSequential(inputs, direction="decreasing", fix=False, decay=None):
         print("Processing size", size)
         students_in_size, pref_in_size = SubsetInstance(size, fix)
         match[size], sibling_priorities_in_size = RADA(
-            (students_in_size, colleges, pref_in_size, cap_updated, siblings), decay
+            (students_in_size, colleges, pref_in_size, cap_updated, siblings), decay, variant
         )
         pref_updated, sibling_priorities = UpdatePriorities(
             sibling_priorities, sibling_priorities_in_size
@@ -661,8 +663,11 @@ if __name__ == "__main__":
     out_size_seq_dec = SizeSequential(
         (students, colleges, pref, cap, siblings), direction="decreasing"
     )
-    out_lsda = SizeSequential(
+    out_lsrada = SizeSequential(
         (students, colleges, pref, cap, siblings), direction="decreasing", fix=True
+    )
+    out_lsda = SizeSequential(
+        (students, colleges, pref, cap, siblings), direction="decreasing", fix=True, variant="DA"
     )
 
     # compare differences in the match between the two algorithms
