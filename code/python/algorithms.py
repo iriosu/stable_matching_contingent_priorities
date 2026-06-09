@@ -366,12 +366,13 @@ def Simultaneous(inputs, decay=None):
     Depending on the value of decay, this implements either the simultaneous algorithm (decay = 0 or NA) or RADA (decay = 1).
     """
     stime = time.time()
-    match, _ = RADA(inputs, decay)
+    match, _, flag = RADA(inputs, decay)
     runtime = time.time() - stime
 
     x_opt = {id_s: {match[id_s]: 1} for id_s in match if match[id_s] is not None}
     outputs = {
         "status": "completed",
+        "flag": flag,
         "x_opt": x_opt,
         "runtime": runtime,
         "num_vars": 0,
