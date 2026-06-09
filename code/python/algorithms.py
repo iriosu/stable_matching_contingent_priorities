@@ -167,6 +167,7 @@ def RADA(inputs, decay=None, variant="RADA"):
     match = {}
     seen_match_keys = set()
     idx = 0
+    status = ""
     while True:
         # we process all levels at the same time, and update priorities after processing all levels
         print("Iteration", idx)
@@ -177,14 +178,18 @@ def RADA(inputs, decay=None, variant="RADA"):
             break
         else:
             match_key = frozenset(match[idx].items())
-            if (
+            if idx > 0 and match_key == frozenset(match[idx - 1].items()):
+                status = "fixed_point"
+                break
+            elif (
                 match_key in seen_match_keys
             ):  # stop if this match was seen before (handles both fixed points and cycles)
+                status = "cycle"
                 break
             seen_match_keys.add(match_key)
             idx += 1
 
-    return match[idx], siblings_priority
+    return match[idx], siblings_priority, status
 
 
 def Sequential(inputs, levels_to_process=None):
