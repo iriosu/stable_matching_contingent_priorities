@@ -86,7 +86,7 @@ none exists, or it exhausts its time budget. The code distinguishes all three.
 │   ├── v2_metrics.py                     the table columns
 │   ├── v2_tables.py                      CSV and LaTeX output
 │   ├── v2_simulate.py                    the experiment driver
-│   └── v2_analyze_hard.py                diagnoses the instances the IP does not close
+│   
 └── results/
     └── v2/
         └── <Region>_<Year>_<timestamp>/
