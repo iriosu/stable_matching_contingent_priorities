@@ -91,8 +91,6 @@ v5/
   v5_final_experiments.py   the four-region campaign
   v5_policy_alternatives.py the two policy panels
   v5_descriptives.py        the descriptive table and figures
-  v5_certify_partial.py     brute-force oracle for the partial formulation
-  v5_audit_partial.py       the certification harness that uses it
   README.md
 R/
   intermediate_data/<Region>/<Year>/instance.txt
@@ -240,25 +238,6 @@ for the model, and Gurobi discards it silently, which is exactly the failure
 that makes the formulation look intractable. `NoRelHeurTime` is set by
 `--no-rel-heur-time`; use 0 on small regions, where it only delays the root
 relaxation.
-
-## Verifying the formulations
-
-Correctness of an integer program is not visible in a solver log, so the
-archive carries its own proof for the partial formulation, the most intricate
-of the set:
-
-```
-python v5_audit_partial.py                    # all stages
-python v5_audit_partial.py --stage targeted   # infeasibility certificates
-python v5_audit_partial.py --stage sweep      # full enumeration
-```
-
-`v5_certify_partial.py` is an independent oracle: it enumerates every matching
-of small random instances, applies Definitions 1, 3 and 4 literally, and
-compares the resulting stable set with the one the integer program accepts. The
-shipped configuration reports zero unsound and zero incomplete instances over
-roughly 250,000 matchings, and also checks `v5_stability.py` against the same
-oracle.
 
 ## Constraint names
 
